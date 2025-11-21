@@ -6,9 +6,9 @@ import { useNavigate } from "react-router-dom";
 const Appointment = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [customerData, setCustomerData] = useState({});
-  const [garageData, setGarageData] = useState({});
-  const [serviceData, setServiceData] = useState({});
+  const [customerMap, setCustomerMap] = useState({});
+  const [garageMap, setGarageMap] = useState({});
+  const [serviceMap, setServiceMap] = useState({});
 
   const navigate = useNavigate();
 
@@ -19,81 +19,97 @@ const Appointment = () => {
   const fetchAppointments = async () => {
     setLoading(true);
     try {
-      const response = await axios.get("http://localhost:8080/admin/appointments/get-all");
-      if (response.data.code === 200) {
-        const appointments = response.data.data;
-        setData(appointments);
+      const res = await axios.get("http://localhost:8080/admin/appointments/get-all");
 
-        // Lấy danh sách ID khách hàng, garage và dịch vụ
-        const customerIds = [...new Set(appointments.map(item => item.customer_id))];
-        const garageIds = [...new Set(appointments.map(item => item.garage_id))];
-        const serviceIds = [...new Set(appointments.map(item => item.service_id))];
-
-        // Lấy thông tin khách hàng, garage, dịch vụ
-        const customerPromises = customerIds.map(id =>
-          axios.get(`http://localhost:8080/admin/customers/get-by-id/${id}`)
-        );
-        const garagePromises = garageIds.map(id =>
-          axios.get(`http://localhost:8080/admin/garages/get-by-id/${id}`)
-        );
-        const servicePromises = serviceIds.map(id =>
-          axios.get(`http://localhost:8080/admin/services/get-by-id/${id}`)
-        );
-
-        const [customers, garages, services] = await Promise.all([
-          Promise.all(customerPromises),
-          Promise.all(garagePromises),
-          Promise.all(servicePromises),
-        ]);
-
-        // Lưu thông tin vào state
-        customers.forEach(response => {
-          if (response.data.code === 200) {
-            setCustomerData(prev => ({ ...prev, [response.data.data.id]: response.data.data.full_name }));
-          }
-        });
-        garages.forEach(response => {
-          if (response.data.code === 200) {
-            setGarageData(prev => ({ ...prev, [response.data.data.id]: response.data.data.name }));
-          }
-        });
-        services.forEach(response => {
-          if (response.data.code === 200 && response.data.data.name) {
-            setServiceData(prev => ({ ...prev, [response.data.data.id]: response.data.data.name }));
-          }
-        });
-      } else {
+      if (!res.data || res.data.code !== 200) {
         message.error("Không thể tải dữ liệu cuộc hẹn");
+        return;
       }
+
+      const appointments = res.data.data || [];
+      setData(appointments);
+
+      // --- Lấy danh sách tất cả IDs ---
+      const customerIds = [...new Set(appointments.map(i => i.customer_id).filter(Boolean))];
+      const garageIds = [...new Set(appointments.map(i => i.garage_id).filter(Boolean))];
+
+      // Xử lý service_id: mỗi appointment có thể nhiều dịch vụ
+      let allServiceIds = [];
+      appointments.forEach(a => {
+        if (Array.isArray(a.service_id)) {
+          allServiceIds.push(...a.service_id);
+        } else if (a.service_id) {
+          allServiceIds.push(a.service_id);
+        }
+      });
+      const serviceIds = [...new Set(allServiceIds)];
+
+      // --- Fetch dữ liệu theo ID ---
+      const customerReq = customerIds.map(id =>
+        axios.get(`http://localhost:8080/admin/customers/get-by-id/${id}`).catch(() => null)
+      );
+      const garageReq = garageIds.map(id =>
+        axios.get(`http://localhost:8080/admin/garages/get-by-id/${id}`).catch(() => null)
+      );
+      const serviceReq = serviceIds.map(id =>
+        axios.get(`http://localhost:8080/admin/services/get-by-id/${id}`).catch(() => null)
+      );
+
+      const [customers, garages, services] = await Promise.all([
+        Promise.all(customerReq),
+        Promise.all(garageReq),
+        Promise.all(serviceReq),
+      ]);
+
+      // --- Mapping CUSTOMER ---
+      const customerMapTemp = {};
+      customers.forEach(r => {
+        if (r && r.data && r.data.code === 200) {
+          const c = r.data.data;
+          if (c && c._id) customerMapTemp[c._id] = c.full_name || "Không tên";
+        }
+      });
+
+      // --- Mapping GARAGE ---
+      const garageMapTemp = {};
+      garages.forEach(r => {
+        if (r && r.data && r.data.code === 200) {
+          const g = r.data.data;
+          if (g && g._id) garageMapTemp[g._id] = g.name || "Không tên";
+        }
+      });
+
+      // --- Mapping SERVICE ---
+      const serviceMapTemp = {};
+      services.forEach(r => {
+        if (r && r.data && r.data.code === 200) {
+          const s = r.data.data;
+          if (s && s._id) serviceMapTemp[s._id] = s.name || "Không tên";
+        }
+      });
+
+      setCustomerMap(customerMapTemp);
+      setGarageMap(garageMapTemp);
+      setServiceMap(serviceMapTemp);
+
     } catch (error) {
+      console.log(error);
+      message.error("Lỗi tải dữ liệu!");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleView = (id) => {
-    navigate(`/admin/appointments/${id}`);
-  };
-
-  const handleCreate = () => {
-    navigate("/admin/appointments/create");
-  };
-
-  const handleEdit = (id) => {
-    navigate(`/admin/appointments/edit/${id}`);
-  };
+  const handleView = (id) => navigate(`/admin/appointments/${id}`);
+  const handleCreate = () => navigate("/admin/appointments/create");
+  const handleEdit = (id) => navigate(`/admin/appointments/edit/${id}`);
 
   const handleDelete = async (id) => {
-    if (!id) {
-      message.error("Không thể xác định ID cuộc hẹn!");
-      return;
-    }
-
     try {
-      const response = await axios.delete(`http://localhost:8080/admin/appointments/delete/${id}`);
-      if (response.data.code === 200) {
+      const res = await axios.delete(`http://localhost:8080/admin/appointments/delete/${id}`);
+      if (res.data.code === 200) {
+        setData(prev => prev.filter(item => item._id !== id));
         message.success("Xóa cuộc hẹn thành công!");
-        setData(prevData => prevData.filter(item => item.id !== id));
       } else {
         message.error("Không thể xóa cuộc hẹn");
       }
@@ -105,59 +121,44 @@ const Appointment = () => {
   const columns = [
     {
       title: "STT",
-      key: "index",
       render: (_, __, index) => index + 1,
     },
     {
       title: "Khách hàng",
       dataIndex: "customer_id",
-      key: "customer_id",
-      render: (customer_id) => customerData[customer_id] || "",
+      render: (id) => customerMap[id] || "Không xác định",
     },
     {
       title: "Garage",
       dataIndex: "garage_id",
-      key: "garage_id",
-      render: (garage_id) => garageData[garage_id] || "",
+      render: (id) => garageMap[id] || "Không xác định",
     },
     {
       title: "Dịch vụ",
       dataIndex: "service_id",
-      key: "service_id",
-      render: (service_id) => serviceData[service_id] || "",
+      render: (ids) => {
+        if (!ids) return "";
+        if (!Array.isArray(ids)) ids = [ids];
+        return ids.map(id => serviceMap[id] || "Không xác định").join(", ");
+      },
     },
     {
       title: "Ngày hẹn",
       dataIndex: "appointment_date",
-      key: "appointment_date",
-      render: (appointment_date) => new Date(appointment_date).toLocaleString(),
+      render: (date) => date ? new Date(date).toLocaleString() : "",
     },
     {
       title: "Ghi chú",
       dataIndex: "notes",
-      key: "notes",
-      render: (notes) => notes,
     },
     {
       title: "Hành động",
-      key: "action",
-      render: (_, record) => (
-        <Space size="middle">
-          <Button type="link" onClick={() => handleView(record.id)}>
-            Xem
-          </Button>
-          <Button type="link" onClick={() => handleEdit(record.id)}>
-            Sửa
-          </Button>
-          <Popconfirm
-            title="Chắc chắn xóa cuộc hẹn này?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Yes"
-            cancelText="No"
-          >
-            <Button type="link" danger>
-              Xóa
-            </Button>
+      render: (_, r) => (
+        <Space>
+          <Button type="link" onClick={() => handleView(r._id)}>Xem</Button>
+          <Button type="link" onClick={() => handleEdit(r._id)}>Sửa</Button>
+          <Popconfirm title="Xóa cuộc hẹn này?" onConfirm={() => handleDelete(r._id)}>
+            <Button type="link" danger>Xóa</Button>
           </Popconfirm>
         </Space>
       ),
@@ -166,17 +167,14 @@ const Appointment = () => {
 
   return (
     <>
-      <Button
-        type="primary"
-        style={{ marginBottom: 16 }}
-        onClick={handleCreate}
-      >
+      <Button type="primary" onClick={handleCreate} style={{ marginBottom: 16 }}>
         Thêm mới
       </Button>
+
       <Table
         columns={columns}
         dataSource={data}
-        rowKey="id"
+        rowKey="_id"
         loading={loading}
         bordered
       />

@@ -36,7 +36,7 @@ const ServiceEdit = () => {
 
       if (response.data.code === 200) {
         message.success('Service updated successfully');
-        navigate(`/admin/services/${id}`); // Quay lại trang chi tiết sau khi chỉnh sửa
+        navigate(`/admin/services`); // Quay lại trang chi tiết sau khi chỉnh sửa
       } else {
         message.error('Failed to update service');
       }

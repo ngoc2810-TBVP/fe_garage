@@ -23,7 +23,7 @@ const Customer = () => {
       const response = await axios.delete(API);
       if (response.data.code === 200) {
         message.success("Xóa khách hàng thành công");
-        setData((prevData) => prevData.filter((item) => item.id !== id)); // Xóa khách hàng khỏi danh sách
+        setData((prevData) => prevData.filter((item) => item._id !== id)); // Xóa khách hàng khỏi danh sách
       } else {
         message.error("Không thể xóa khách hàng");
       }
@@ -82,15 +82,15 @@ const Customer = () => {
       key: "action",
       render: (_, record) => (
         <Space size="middle">
-          <Button type="link" onClick={() => handleView(record.id)}>
+          <Button type="link" onClick={() => handleView(record._id)}>
             Xem
           </Button>
-          <Button type="link" onClick={() => handleEdit(record.id)}>
+          <Button type="link" onClick={() => handleEdit(record._id)}>
             Sửa
           </Button>
           <Popconfirm
             title="Bạn có chắc chắn muốn xóa khách hàng này?"
-            onConfirm={() => handleDelete(record.id)}
+            onConfirm={() => handleDelete(record._id)}
             okText="Có"
             cancelText="Không"
           >

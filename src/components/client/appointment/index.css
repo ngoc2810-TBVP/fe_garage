@@ -1,28 +1,56 @@
-body{
-    overflow-x: none;
+/* index.css - chỉ style riêng, KHÔNG override toàn bộ ant classes */
+
+/* tránh overflow-x: none (không hợp lệ) */
+body {
+  overflow-x: hidden;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }
 
-img:hover {
-    transform: none; /* Loại bỏ hiệu ứng phóng to */
+/* header img */
+img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
-.ant-steps-item-title,
-.ant-steps-item-description,
+/* Tùy chỉnh cho card được chọn (chỉ class này) */
+.garage-selected {
+  background-color: #ff4d4f !important;
+  color: #fff !important;
+  border-color: #ff4d4f !important;
+  box-shadow: 0 4px 8px rgba(255, 77, 79, 0.12);
+}
+
+/* Tùy chỉnh cho hàng service được chọn */
+.service-selected td {
+  background-color: rgba(255, 77, 79, 0.08) !important;
+}
+
+/* Giữ transition nhẹ */
+.ant-card {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* Không override .ant-card:hover global (để tránh ảnh hưởng nhiều item) */
+
+/* Steps icon color */
 .ant-steps-item-process .ant-steps-item-icon {
-  /* color: #fff !important; */
+  background-color: #ff4d4f !important;
 }
 
-.ant-steps-item-process .ant-steps-item-icon {
-  background-color: #ff4d4f !important; /* Tùy chỉnh màu nền nếu cần */
+/* container margins */
+.all {
+  margin: 40px;
 }
 
-.all{
-    margin-right: 40px;
-    margin-left: 40px;
+/* fixes small layout */
+.mt-4 {
+  margin-top: 16px;
 }
-
-h2{
+.mt-5 {
+  margin-top: 24px;
 }
-
-.ant-form-item-label > label {
+.mb-4 {
+  margin-bottom: 16px;
 }

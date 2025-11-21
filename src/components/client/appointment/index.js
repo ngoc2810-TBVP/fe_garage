@@ -1,40 +1,55 @@
 import React, { useEffect, useState } from "react";
 import { Steps, Card, Row, Col, Button, Table, message, Form, Input } from "antd";
 import { ClockCircleOutlined, TagOutlined, CheckOutlined } from "@ant-design/icons";
-import io from 'socket.io-client';
+import io from "socket.io-client";
 import "./index.css";
 
 export default function AppointmentClient() {
   const { Step } = Steps;
+
   const [garages, setGarages] = useState([]);
   const [services, setServices] = useState([]);
-  const [selectedGarages, setSelectedGarages] = useState(null);
+
+  // chỉ lưu id thay vì whole object để giảm re-render
+  const [selectedGarageId, setSelectedGarageId] = useState(null);
   const [selectedServices, setSelectedServices] = useState([]);
+
   const [form] = Form.useForm();
   const [socket, setSocket] = useState(null);
+
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedDateFormat, setSelectedDateFormat] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
 
-  const timeSlots = ["07:00", "07:30", "08:00", "08:30", "09:00", "09:30", "10:00", "10:30"];
+  const timeSlots = [
+    "07:00",
+    "07:30",
+    "08:00",
+    "08:30",
+    "09:00",
+    "09:30",
+    "10:00",
+    "10:30",
+  ];
 
+  // 7 ngày kế tiếp
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date();
     date.setDate(date.getDate() + index);
 
     return {
-      fullDate: date.toISOString().split('T')[0], // Trả ra định dạng YYYY-MM-DD
-      day: date.getDate(),                       // Ngày
-      month: date.getMonth() + 1,                // Tháng (0-based nên cần +1)
-      year: date.getFullYear(),                  // Năm
-      dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'short' }), // Thứ trong tuần
+      fullDate: date.toISOString().split("T")[0],
+      day: date.getDate(),
+      month: date.getMonth() + 1,
+      year: date.getFullYear(),
+      dayOfWeek: date.toLocaleDateString("en-US", { weekday: "short" }),
     };
   });
 
   useEffect(() => {
     const socketInstance = io("http://localhost:8080", {
-      transports: ['websocket', 'polling'],
-      path: '/socket.io',
+      transports: ["websocket", "polling"],
+      path: "/socket.io",
     });
 
     socketInstance.on("connect", () => {
@@ -47,7 +62,14 @@ export default function AppointmentClient() {
       try {
         const response = await fetch("http://localhost:8080/admin/garages/get-all");
         const data = await response.json();
-        setGarages(data.data);
+        // map _id -> id để dùng nhất quán trong frontend
+        const mapped = Array.isArray(data.data)
+          ? data.data.map((g) => ({
+              id: g._id || g.id,
+              ...g,
+            }))
+          : [];
+        setGarages(mapped);
       } catch (error) {
         console.error("Error fetching garages:", error);
       }
@@ -57,12 +79,19 @@ export default function AppointmentClient() {
       try {
         const response = await fetch("http://localhost:8080/admin/services/get-all");
         const data = await response.json();
-        setServices(data.data.map(service => ({
-          key: service.id,
-          name: service.name,
-          duration: `${service.duration} min`,
-          price: `${service.price.toLocaleString()} VND`,
-        })));
+        console.log(data)
+        const mapped = Array.isArray(data.data)
+          ? data.data.map((s) => ({
+              id: s._id || s.id,
+              name: s.name,
+              duration: typeof s.duration !== "undefined" ? `${s.duration} phút` : "—",
+              rawDuration: s.duration || 0,
+              price: typeof s.price === "number" ? `${s.price.toLocaleString()} VND` : s.price,
+            }))
+          : [];
+        setServices(mapped);
+
+        console.log("services: ", services)
       } catch (error) {
         console.error("Error fetching services:", error);
       }
@@ -70,43 +99,40 @@ export default function AppointmentClient() {
 
     fetchGarages();
     fetchServices();
+
+    // cleanup socket on unmount
+    return () => {
+      if (socketInstance) socketInstance.disconnect();
+    };
   }, []);
 
-  const handleGaragesSelect = (garage) => {
-    setSelectedGarages(garage);
+  // Chọn 1 garage (lưu id)
+  const handleGaragesSelect = (garageId) => {
+    setSelectedGarageId((prev) => (prev === garageId ? null : garageId));
   };
 
-  const handleToggleSelectService = (serviceKey) => {
-    if (selectedServices.includes(serviceKey)) {
-      setSelectedServices(selectedServices.filter((key) => key !== serviceKey));
-    } else {
-      setSelectedServices([...selectedServices, serviceKey]);
-    }
+  // Toggle chọn service (nhiều chọn)
+  const handleToggleSelectService = (serviceId) => {
+    setSelectedServices((prev) =>
+      prev.includes(serviceId) ? prev.filter((id) => id !== serviceId) : [...prev, serviceId]
+    );
   };
 
+  // chọn ngày giờ
   const handleTimeSelect = (day, time) => {
-    console.log("Time: ", time);
-    setSelectedDate(day.fullDate); // Gán fullDate (YYYY-MM-DD)
-    setSelectedTime(time); // Gán giờ đã chọn
+    setSelectedDate(day.fullDate);
+    setSelectedTime(time);
 
-    // Tạo đối tượng Date mà không bị ảnh hưởng bởi múi giờ
-    const [year, month, date] = day.fullDate.split('-');
-    const [hour, minute] = time.split(':');
+    const [year, month, date] = day.fullDate.split("-");
+    const [hour, minute] = time.split(":");
 
-    // Tạo một đối tượng Date
-    const value = new Date(year, month - 1, date, hour, minute);
-
-    // Định dạng thủ công thành `YYYY-MM-DD HH:mm:ss`
     const formattedDateTime = new Date(`${year}-${month}-${date}T${hour}:${minute}:00`);
-
-    // Lưu giá trị gộp
     setSelectedDateFormat(formattedDateTime);
+  };
 
-    console.log("Selected Date Format: ", formattedDateTime);
-};
-
+  // submit booking
   const handleConfirmBooking = async (values) => {
-    if (!selectedGarages) {
+    if (!selectedGarageId) {
       message.error("Vui lòng chọn chi nhánh!");
       return;
     }
@@ -131,69 +157,53 @@ export default function AppointmentClient() {
     try {
       const customerResponse = await fetch("http://localhost:8080/admin/customers/create", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(customerData),
       });
 
       const customerResult = await customerResponse.json();
+      console.log("customerResult: ", customerResult)
 
       if (customerResult.code === 201) {
-        const customerId = customerResult.data.id;
-        const selectedServicesData = selectedServices.join(",");
+        const customerId = customerResult.data._id;
 
         const bookingData = {
-          garage_id: selectedGarages.id,
-          service_id: selectedServicesData,
-          customer_id: customerId,
-          appointment_date: selectedDateFormat,
-        };
-
-        console.log("bookingData: ", bookingData)
-
+  garage_id: selectedGarageId,
+  service_id: selectedServices.map(id => id.toString()), // gửi mảng các _id của service
+  customer_id: customerId,
+  appointment_date: selectedDateFormat,
+};
         const appointmentResponse = await fetch("http://localhost:8080/admin/appointments/create", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(bookingData),
         });
 
         const appointmentResult = await appointmentResponse.json();
 
-        const notiData = {
-          customer_id: customerId,
-          message: "",
-        };
-
-        const notiResponse = await fetch("http://localhost:8080/admin/notification/postQuickOrder", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(notiData),
-        });
+        console.log("appointmentResult: ", appointmentResult)
 
         if (appointmentResult.code === 201) {
           message.success("Đặt lịch thành công!");
           form.resetFields();
-          setSelectedGarages(null);
+          setSelectedGarageId(null);
           setSelectedServices([]);
           setSelectedDate(null);
           setSelectedTime(null);
+          setSelectedDateFormat(null);
         } else {
-          message.error("Đặt lịch không thành công. Vui lòng thử lại.");
+          message.error("Đặt lịch không thành công!");
         }
       } else {
-        message.error("Tạo khách hàng không thành công. Vui lòng thử lại.");
+        message.error("Tạo khách hàng không thành công!");
       }
     } catch (error) {
-      console.error("Error during booking process:", error);
-      message.error("Đã xảy ra lỗi, vui lòng thử lại.");
+      console.error("Error during booking:", error);
+      message.error("Đã xảy ra lỗi!");
     }
   };
 
+  // Table columns
   const columns = [
     {
       title: "Dịch Vụ",
@@ -231,16 +241,21 @@ export default function AppointmentClient() {
       title: "",
       key: "action",
       render: (_, record) => {
-        const isSelected = selectedServices.includes(record.key);
+        const isSelected = selectedServices.includes(record.id);
+
         return (
           <Button
-            type="primary"
+            type={isSelected ? "primary" : "default"}
             danger={isSelected}
-            onClick={() => handleToggleSelectService(record.key)}
+            onClick={(e) => {
+              // prevent event bubbling to row click (if any)
+              e.stopPropagation();
+              handleToggleSelectService(record.id);
+            }}
             style={{
-              backgroundColor: isSelected ? "#FF4D4F" : "",
-              color: isSelected ? "#fff" : "",
-              borderColor: isSelected ? "#FF4D4F" : "",
+              backgroundColor: isSelected ? "#FF4D4F" : undefined,
+              color: isSelected ? "#fff" : undefined,
+              borderColor: isSelected ? "#FF4D4F" : undefined,
             }}
             icon={isSelected ? <CheckOutlined /> : null}
           >
@@ -251,6 +266,11 @@ export default function AppointmentClient() {
     },
   ];
 
+  // helper for rowClassName: add class to selected services only
+  const rowClassName = (record) => {
+    return selectedServices.includes(record.id) ? "service-selected" : "";
+  };
+
   return (
     <div>
       <img
@@ -258,16 +278,16 @@ export default function AppointmentClient() {
         src="https://quanticalabs.com/wp_themes4/wp-content/uploads/2017/04/header_01.jpg"
         alt="Header"
       />
+
       <div className="all mt-5">
         <p className="mt-4">
-          <b>Chào mừng bạn đến với hệ thống đặt lịch hẹn rửa xe và chăm sóc xe của AutoWash. Một số lưu ý đến bạn:</b>
+          <b>Chào mừng bạn đến hệ thống đặt lịch AutoWash:</b>
         </p>
-        <p>Đơn vị tính được hiểu là (x1.000đ)</p>
-        <p>Nếu không có nhu cầu lựa chọn combo, bạn có thể bỏ qua bước 2 nhé!</p>
 
         <Form form={form} layout="vertical" onFinish={handleConfirmBooking}>
+          {/* CHỌN CHI NHÁNH */}
           <Steps current={0} style={{ marginBottom: "20px" }}>
-            <Step title="Chọn chi nhánh" description="Select location below." />
+            <Step title="Chọn chi nhánh" />
           </Steps>
 
           <Row gutter={16}>
@@ -275,12 +295,8 @@ export default function AppointmentClient() {
               <Col span={6} key={garage.id}>
                 <Card
                   hoverable
-                  style={{
-                    textAlign: "center",
-                    backgroundColor: selectedGarages?.id === garage.id ? "#FF4D4F" : "#f0f0f0",
-                    color: selectedGarages?.id === garage.id ? "#fff" : "#000",
-                  }}
-                  onClick={() => handleGaragesSelect(garage)}
+                  className={selectedGarageId === garage.id ? "garage-selected" : ""}
+                  onClick={() => handleGaragesSelect(garage.id)}
                 >
                   {garage.name}
                 </Card>
@@ -288,81 +304,78 @@ export default function AppointmentClient() {
             ))}
           </Row>
 
+          {/* DỊCH VỤ */}
           <div className="mt-4">
             <Steps current={1} style={{ marginBottom: "20px" }}>
-              <Step title="Bảng Dịch Vụ" description="Chọn thêm dịch vụ lẻ" />
+              <Step title="Bảng Dịch Vụ" />
             </Steps>
 
             <Table
               columns={columns}
               dataSource={services}
+              rowKey="id"
               pagination={false}
               bordered
-              loading={services.length === 0}
+              rowClassName={rowClassName}
             />
           </div>
 
+          {/* THỜI GIAN */}
           <div className="mt-4">
             <Steps current={2} style={{ marginBottom: "20px" }}>
-              <Step title="Chọn thời gian" description="Click vào ngày và giờ dưới đây để đặt lịch" />
+              <Step title="Chọn thời gian" />
             </Steps>
 
-            <div className="time-table">
-              <Row gutter={16}>
-                {days.map((day, dayIndex) => (
-                  <Col key={dayIndex} span={3}>
-                    <div
-                      className={`day-header ${dayIndex === 0 ? 'not-available' : ''}`}
-                      style={{
-                        backgroundColor: dayIndex === 0 ? "#FF4D4F" : "#fff",
-                        color: dayIndex === 0 ? "#fff" : "#000",
-                        borderRadius: "50%",
-                        width: "40px",
-                        height: "40px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        margin: "0 auto",
-                      }}
-                    >
-                      <div>{day.day}</div>
-                    </div>
-                    <div style={{ textAlign: "center", marginTop: "5px", fontSize: "12px", color: "#aaa" }}>
-                      {day.dayOfWeek}
-                    </div>
+            <Row gutter={16}>
+              {days.map((day, index) => (
+                <Col span={3} key={day.fullDate}>
+                  <div
+                    style={{
+                      backgroundColor: index === 0 ? "#FF4D4F" : "#fff",
+                      color: index === 0 ? "#fff" : "#000",
+                      borderRadius: "50%",
+                      width: "40px",
+                      height: "40px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      margin: "0 auto",
+                    }}
+                  >
+                    {day.day}
+                  </div>
 
-                    {dayIndex === 0 ? (
-                      <div style={{ textAlign: "center", color: "gray", marginTop: "10px" }}>
-                        Not available.
-                      </div>
-                    ) : (
-                      <div className="time-slots">
-                        {timeSlots.map((time, timeIndex) => (
-                          <Button
-                            key={timeIndex}
-                            type="default"
-                            block
-                            style={{
-                              marginBottom: "5px",
-                              backgroundColor:
-                                time === selectedTime && day.fullDate === selectedDate ? "#FF4D4F" : "#fff",
-                              color: time === selectedTime && day.fullDate === selectedDate ? "#fff" : "#000",
-                              borderColor: "#d9d9d9",
-                            }}
-                            onClick={() => handleTimeSelect(day, time)}
-                          >
-                            {time}
-                          </Button>
-                        ))}
-                      </div>
-                    )}
-                  </Col>
-                ))}
-              </Row>
-            </div>
+                  <div style={{ textAlign: "center", marginTop: "5px", fontSize: "12px", color: "#aaa" }}>
+                    {day.dayOfWeek}
+                  </div>
+
+                  {index === 0 ? (
+                    <div style={{ textAlign: "center", marginTop: "10px" }}>Not available</div>
+                  ) : (
+                    timeSlots.map((time) => (
+                      <Button
+                        key={`${day.fullDate}-${time}`}
+                        block
+                        style={{
+                          marginBottom: "5px",
+                          backgroundColor:
+                            time === selectedTime && day.fullDate === selectedDate ? "#FF4D4F" : "#fff",
+                          color: time === selectedTime && day.fullDate === selectedDate ? "#fff" : "#000",
+                        }}
+                        onClick={() => handleTimeSelect(day, time)}
+                      >
+                        {time}
+                      </Button>
+                    ))
+                  )}
+                </Col>
+              ))}
+            </Row>
           </div>
 
+          {/* FORM THÔNG TIN KHÁCH HÀNG */}
           <h2 className="mt-3">Thông Tin Khách Hàng</h2>
+
           <Form.Item name="full_name" label="Họ và Tên" rules={[{ required: true, message: "Vui lòng nhập họ tên!" }]}>
             <Input />
           </Form.Item>
@@ -378,12 +391,8 @@ export default function AppointmentClient() {
           <Form.Item name="address" label="Địa Chỉ" rules={[{ required: true, message: "Vui lòng nhập địa chỉ!" }]}>
             <Input />
           </Form.Item>
-          <Button
-            className='mb-4'
-            type="primary"
-            style={{ marginTop: "20px" }}
-            htmlType="submit"
-          >
+
+          <Button type="primary" htmlType="submit" className="mb-4" style={{ marginTop: "20px" }}>
             Xác nhận đặt lịch
           </Button>
         </Form>

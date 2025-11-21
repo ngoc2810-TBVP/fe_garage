@@ -50,7 +50,7 @@ const AdminIndex = () => {
       const response = await axios.delete(API);
       if (response.data.code === 200) {
         message.success("Xóa Admin thành công.");
-        setData((prev) => prev.filter((admin) => admin.id !== id));
+        setData((prev) => prev.filter((admin) => admin._id !== id));
       } else {
         message.error("Không thể xóa Admin.");
       }
@@ -92,15 +92,15 @@ const AdminIndex = () => {
       key: "action",
       render: (_, record) => (
         <Space size="middle">
-          <Button type="link" onClick={() => handleView(record.id)}>
+          <Button type="link" onClick={() => handleView(record._id)}>
             Xem
           </Button>
-          <Button type="link" onClick={() => handleEdit(record.id)}>
+          <Button type="link" onClick={() => handleEdit(record._id)}>
             Sửa
           </Button>
           <Popconfirm
             title="Bạn có chắc chắn muốn xóa Admin này?"
-            onConfirm={() => handleDelete(record.id)}
+            onConfirm={() => handleDelete(record._id)}
             okText="Có"
             cancelText="Không"
           >

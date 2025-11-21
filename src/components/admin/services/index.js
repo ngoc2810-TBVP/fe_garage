@@ -44,7 +44,7 @@ const Services = () => {
       const response = await axios.delete(API);
       if (response.data.code === 200) {
         message.success("Xóa dịch vụ thành công");
-        setServices((prev) => prev.filter((service) => service.id !== id)); // Cập nhật danh sách sau khi xóa
+        setServices((prev) => prev.filter((service) => service._id !== id)); // Cập nhật danh sách sau khi xóa
       } else {
         message.error("Không thể xóa dịch vụ");
       }
@@ -81,15 +81,15 @@ const Services = () => {
       key: "action",
       render: (_, record) => (
         <Space size="middle">
-          <Button type="link" onClick={() => handleView(record.id)}>
+          <Button type="link" onClick={() => handleView(record._id)}>
             Xem
           </Button>
-          <Button type="link" onClick={() => handleEdit(record.id)}>
+          <Button type="link" onClick={() => handleEdit(record._id)}>
             Sửa
           </Button>
           <Popconfirm
             title="Bạn có chắc chắn muốn xóa dịch vụ này?"
-            onConfirm={() => handleDelete(record.id)}
+            onConfirm={() => handleDelete(record._id)}
             okText="Có"
             cancelText="Không"
           >
